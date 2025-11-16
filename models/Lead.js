@@ -11,15 +11,9 @@ const leadSchema = new mongoose.Schema({
     required: [true, 'Phone is required'],
     trim: true
   },
-  interest: {
+  message: {
     type: String,
-    required: [true, 'Interest is required'],
-    enum: ['rental', 'service']
-  },
-  source: {
-    type: String,
-    required: [true, 'Source is required'],
-    enum: ['browse', 'contact']
+    trim: true
   }
 }, {
   timestamps: true

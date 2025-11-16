@@ -14,7 +14,7 @@ const acSchema = new mongoose.Schema({
   capacity: {
     type: String,
     required: [true, 'Capacity is required'],
-    enum: ['1 Ton', '1.5 Ton', '2 Ton', '2.5 Ton']
+    // Accept free-form capacity like "1.5 Ton" per spec
   },
   type: {
     type: String,

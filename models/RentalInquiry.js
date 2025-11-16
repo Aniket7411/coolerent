@@ -63,14 +63,19 @@ const rentalInquirySchema = new mongoose.Schema({
     required: [true, 'Phone is required'],
     trim: true
   },
+  duration: {
+    type: String,
+    required: [true, 'Duration is required'],
+    enum: ['Monthly', 'Quarterly', 'Yearly']
+  },
   message: {
     type: String,
     trim: true
   },
   status: {
     type: String,
-    enum: ['Pending', 'Contacted', 'Completed', 'Cancelled'],
-    default: 'Pending'
+    enum: ['New', 'Contacted', 'In-Progress', 'Resolved', 'Rejected'],
+    default: 'New'
   }
 }, {
   timestamps: true

@@ -5,11 +5,17 @@ const { notifyRentalInquiry } = require('../utils/notifications');
 // Create rental inquiry
 exports.createRentalInquiry = async (req, res, next) => {
   try {
-    const { name, email, phone, message, acId, acDetails } = req.body;
+    const { name, email, phone, message, acId, acDetails, duration } = req.body;
     const { id } = req.params;
 
-    // Use acId from request body if provided, otherwise use id from URL params
+    // Validate acId in body equals path {id} if provided; else use path id
     const finalAcId = acId || id;
+    if (acId && acId !== id) {
+      return res.status(400).json({
+        success: false,
+        message: 'acId in body must equal path parameter id'
+      });
+    }
 
     // Check if AC exists
     const ac = await AC.findById(finalAcId);
@@ -45,6 +51,7 @@ exports.createRentalInquiry = async (req, res, next) => {
       name,
       email,
       phone,
+      duration,
       message
     });
 
@@ -64,8 +71,10 @@ exports.createRentalInquiry = async (req, res, next) => {
 // Get all rental inquiries (Admin)
 exports.getAllRentalInquiries = async (req, res, next) => {
   try {
-    const inquiries = await RentalInquiry.find()
-      .sort({ createdAt: -1 });
+    const [inquiries, total] = await Promise.all([
+      RentalInquiry.find().sort({ createdAt: -1 }),
+      RentalInquiry.countDocuments()
+    ]);
 
     // Format response - use stored acDetails if available
     const formattedInquiries = inquiries.map(inquiry => ({
@@ -94,7 +103,8 @@ exports.getAllRentalInquiries = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: formattedInquiries
+      data: formattedInquiries,
+      total
     });
   } catch (error) {
     next(error);
@@ -106,11 +116,11 @@ exports.updateInquiryStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
 
-    const allowedStatuses = ['Pending', 'Contacted', 'Completed', 'Cancelled'];
+    const allowedStatuses = ['New', 'Contacted', 'In-Progress', 'Resolved', 'Rejected'];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be one of: Pending, Contacted, Completed, Cancelled'
+        message: 'Invalid status. Must be one of: New, Contacted, In-Progress, Resolved, Rejected'
       });
     }
 

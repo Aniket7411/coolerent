@@ -26,8 +26,15 @@ exports.validateRentalInquiry = [
     .trim()
     .notEmpty()
     .withMessage('Phone is required')
-    .matches(/^\+91\s?\d{10}$/)
-    .withMessage('Please provide a valid Indian phone number (+91 XXXXXXXXXX)'),
+    .customSanitizer((value) => (typeof value === 'string' ? value.replace(/[\s-]/g, '') : value))
+    .matches(/^\+[1-9]\d{1,14}$/)
+    .withMessage('Please provide a valid E.164 phone number (e.g., +919999999999)'),
+  body('duration')
+    .trim()
+    .notEmpty()
+    .withMessage('Duration is required')
+    .isIn(['Monthly', 'Quarterly', 'Yearly'])
+    .withMessage('Duration must be Monthly, Quarterly, or Yearly'),
   body('message')
     .optional()
     .trim(),
@@ -85,20 +92,12 @@ exports.validateLead = [
     .trim()
     .notEmpty()
     .withMessage('Phone is required')
-    .matches(/^\+91\s?\d{10}$/)
-    .withMessage('Please provide a valid Indian phone number (+91 XXXXXXXXXX)'),
-  body('interest')
-    .trim()
-    .notEmpty()
-    .withMessage('Interest is required')
-    .isIn(['rental', 'service'])
-    .withMessage('Interest must be rental or service'),
-  body('source')
-    .trim()
-    .notEmpty()
-    .withMessage('Source is required')
-    .isIn(['browse', 'contact'])
-    .withMessage('Source must be browse or contact'),
+    .customSanitizer((value) => (typeof value === 'string' ? value.replace(/[\s-]/g, '') : value))
+    .matches(/^\+[1-9]\d{1,14}$/)
+    .withMessage('Please provide a valid E.164 phone number (e.g., +919999999999)'),
+  body('message')
+    .optional()
+    .trim(),
   handleValidationErrors
 ];
 
@@ -116,8 +115,9 @@ exports.validateContact = [
     .trim()
     .notEmpty()
     .withMessage('Phone is required')
-    .matches(/^\+91\s?\d{10}$/)
-    .withMessage('Please provide a valid Indian phone number (+91 XXXXXXXXXX)'),
+    .customSanitizer((value) => (typeof value === 'string' ? value.replace(/[\s-]/g, '') : value))
+    .matches(/^\+[1-9]\d{1,14}$/)
+    .withMessage('Please provide a valid E.164 phone number (e.g., +919999999999)'),
   body('message')
     .trim()
     .notEmpty()
@@ -131,16 +131,17 @@ exports.validateVendorListing = [
     .trim()
     .notEmpty()
     .withMessage('Name is required'),
-  body('email')
-    .trim()
-    .isEmail()
-    .withMessage('Please provide a valid email'),
   body('phone')
     .trim()
     .notEmpty()
     .withMessage('Phone is required')
-    .matches(/^\+91\s?\d{10}$/)
-    .withMessage('Please provide a valid Indian phone number (+91 XXXXXXXXXX)'),
+    .customSanitizer((value) => (typeof value === 'string' ? value.replace(/[\s-]/g, '') : value))
+    .matches(/^\+[1-9]\d{1,14}$/)
+    .withMessage('Please provide a valid E.164 phone number (e.g., +919999999999)'),
+  body('businessName')
+    .trim()
+    .notEmpty()
+    .withMessage('Business name is required'),
   body('message')
     .optional()
     .trim(),
@@ -160,7 +161,6 @@ exports.validateAdminLogin = [
 ];
 
 // Validate AC creation/update
-// For JSON requests, price comes as nested object: { price: { monthly, quarterly, yearly } }
 exports.validateAC = [
   body('brand')
     .trim()
@@ -173,9 +173,7 @@ exports.validateAC = [
   body('capacity')
     .trim()
     .notEmpty()
-    .withMessage('Capacity is required')
-    .isIn(['1 Ton', '1.5 Ton', '2 Ton', '2.5 Ton'])
-    .withMessage('Capacity must be 1 Ton, 1.5 Ton, 2 Ton, or 2.5 Ton'),
+    .withMessage('Capacity is required'),
   body('type')
     .trim()
     .notEmpty()
@@ -189,23 +187,18 @@ exports.validateAC = [
   body('price')
     .notEmpty()
     .withMessage('Price is required')
-    .isObject()
-    .withMessage('Price must be an object'),
-  body('price.monthly')
-    .notEmpty()
-    .withMessage('Monthly price is required')
-    .isFloat({ min: 0 })
-    .withMessage('Monthly price must be a positive number'),
-  body('price.quarterly')
-    .notEmpty()
-    .withMessage('Quarterly price is required')
-    .isFloat({ min: 0 })
-    .withMessage('Quarterly price must be a positive number'),
-  body('price.yearly')
-    .notEmpty()
-    .withMessage('Yearly price is required')
-    .isFloat({ min: 0 })
-    .withMessage('Yearly price must be a positive number'),
+    .custom((value) => {
+      if (typeof value === 'number') {
+        if (value < 0) throw new Error('Price must be a positive number');
+        return true;
+      }
+      if (typeof value === 'object') {
+        if (value.monthly === undefined) throw new Error('Monthly price is required');
+        if (Number.isNaN(parseFloat(value.monthly)) || parseFloat(value.monthly) < 0) throw new Error('Monthly price must be a positive number');
+        return true;
+      }
+      throw new Error('Price must be a number or an object');
+    }),
   body('images')
     .optional()
     .isArray()
@@ -218,6 +211,118 @@ exports.validateAC = [
     .optional()
     .isIn(['Available', 'Rented Out', 'Under Maintenance'])
     .withMessage('Status must be Available, Rented Out, or Under Maintenance'),
+  handleValidationErrors
+];
+
+// Validate service
+exports.validateService = [
+  body('title')
+    .trim()
+    .notEmpty()
+    .withMessage('Title is required'),
+  body('description')
+    .trim()
+    .notEmpty()
+    .withMessage('Description is required'),
+  body('price')
+    .notEmpty()
+    .withMessage('Price is required')
+    .isFloat({ min: 0 })
+    .withMessage('Price must be a positive number'),
+  body('originalPrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Original price must be a positive number'),
+  body('badge')
+    .optional()
+    .isIn(['Visit Within 1 Hour', 'Most Booked', 'Power Saver', null, ''])
+    .withMessage('Badge must be one of: Visit Within 1 Hour, Most Booked, Power Saver'),
+  body('image')
+    .optional()
+    .isURL()
+    .withMessage('Image must be a valid URL'),
+  body('process')
+    .optional()
+    .isArray()
+    .withMessage('Process must be an array of strings'),
+  body('process.*')
+    .optional()
+    .isString()
+    .withMessage('Each process step must be a string'),
+  body('benefits')
+    .optional()
+    .isArray()
+    .withMessage('Benefits must be an array of strings'),
+  body('benefits.*')
+    .optional()
+    .isString()
+    .withMessage('Each benefit must be a string'),
+  body('keyFeatures')
+    .optional()
+    .isArray()
+    .withMessage('Key features must be an array of strings'),
+  body('keyFeatures.*')
+    .optional()
+    .isString()
+    .withMessage('Each key feature must be a string'),
+  handleValidationErrors
+];
+
+// Validate service booking
+exports.validateServiceBooking = [
+  body('serviceId')
+    .notEmpty()
+    .withMessage('Service ID is required')
+    .isMongoId()
+    .withMessage('Service ID must be a valid ObjectId'),
+  body('name')
+    .trim()
+    .notEmpty()
+    .withMessage('Name is required'),
+  body('phone')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone is required')
+    .customSanitizer((value) => {
+      if (typeof value !== 'string') return value;
+      const cleaned = value.replace(/[()\s\-\.]/g, '');
+      return cleaned.replace(/(?!^)\+/g, '');
+    })
+    .matches(/^\+[1-9]\d{1,14}$/)
+    .withMessage('Please provide a valid E.164 phone number (e.g., +919999999999)'),
+  body('preferredDate')
+    .custom((value, { req }) => {
+      const dateVal = (req.body.preferredDate || req.body.date || '').toString().trim();
+      if (!dateVal) {
+        throw new Error('Preferred date is required');
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        throw new Error('Date must be in YYYY-MM-DD format');
+      }
+      return true;
+    }),
+  body('preferredTime')
+    .custom((value, { req }) => {
+      const timeVal = (req.body.preferredTime || req.body.time || '').toString().trim();
+      if (!timeVal) {
+        throw new Error('Preferred time is required');
+      }
+      const is24h = /^([01]\d|2[0-3]):[0-5]\d$/.test(timeVal);
+      const isAmPm = /^(0?[1-9]|1[0-2]):[0-5]\d\s?(AM|PM)$/i.test(timeVal);
+      if (!is24h && !isAmPm) {
+        throw new Error('Time must be in HH:mm 24-hour format');
+      }
+      return true;
+    }),
+  body('address')
+    .trim()
+    .notEmpty()
+    .withMessage('Address is required')
+    .isLength({ min: 10 })
+    .withMessage('Address must be at least 10 characters long'),
+  body('notes')
+    .optional()
+    .trim(),
   handleValidationErrors
 ];
 

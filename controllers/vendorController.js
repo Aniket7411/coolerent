@@ -4,12 +4,12 @@ const { notifyAdmin } = require('../utils/notifications');
 // Submit vendor listing request
 exports.submitVendorListing = async (req, res, next) => {
   try {
-    const { name, email, phone, message } = req.body;
+    const { name, phone, businessName, message } = req.body;
 
     await VendorListing.create({
       name,
-      email,
       phone,
+      businessName,
       message
     });
 
@@ -19,8 +19,8 @@ exports.submitVendorListing = async (req, res, next) => {
       A new vendor listing request has been submitted:
       
       Name: ${name}
-      Email: ${email}
       Phone: ${phone}
+      Business: ${businessName}
       Message: ${message || 'N/A'}
     `;
 

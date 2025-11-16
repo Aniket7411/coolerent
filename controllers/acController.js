@@ -64,14 +64,26 @@ exports.getAllACs = async (req, res, next) => {
       }
     }
 
+    // Pagination
+    const page = parseInt(req.query.page || 1);
+    const limit = parseInt(req.query.limit || 0); // 0 means no pagination
+    const skip = limit > 0 ? (page - 1) * limit : 0;
+
     // Get ACs
-    const acs = await AC.find(query).sort({ createdAt: -1 });
-    const total = await AC.countDocuments(query);
+    let acsQuery = AC.find(query).sort({ createdAt: -1 });
+    if (limit > 0) {
+      acsQuery = acsQuery.skip(skip).limit(limit);
+    }
+    const [acsRaw, total] = await Promise.all([acsQuery.lean(), AC.countDocuments(query)]);
+
+    // Return full price object as per spec
+    const acs = acsRaw;
 
     res.status(200).json({
       success: true,
       data: acs,
-      total
+      total,
+      ...(limit > 0 ? { page, limit } : {})
     });
   } catch (error) {
     next(error);
@@ -81,14 +93,17 @@ exports.getAllACs = async (req, res, next) => {
 // Get AC by ID
 exports.getACById = async (req, res, next) => {
   try {
-    const ac = await AC.findById(req.params.id);
+    const acDoc = await AC.findById(req.params.id).lean();
 
-    if (!ac) {
+    if (!acDoc) {
       return res.status(404).json({
         success: false,
         message: 'AC not found'
       });
     }
+
+    // Return full price object per spec
+    const ac = { ...acDoc };
 
     res.status(200).json({
       success: true,
@@ -131,11 +146,24 @@ exports.addAC = async (req, res, next) => {
     // Images come as array of URLs from frontend (already uploaded to Cloudinary)
     const imageUrls = Array.isArray(images) ? images : [];
 
-    // Validate price object exists (validation middleware should catch this, but adding safety check)
-    if (!price || !price.monthly || !price.quarterly || !price.yearly) {
+    // Normalize price: accept number or object
+    let normalizedPrice;
+    if (typeof price === 'number') {
+      normalizedPrice = {
+        monthly: parseFloat(price),
+        quarterly: parseFloat(price) * 3,
+        yearly: parseFloat(price) * 12
+      };
+    } else if (price && (price.monthly || price.quarterly || price.yearly)) {
+      normalizedPrice = {
+        monthly: parseFloat(price.monthly),
+        quarterly: parseFloat(price.quarterly ?? price.monthly * 3),
+        yearly: parseFloat(price.yearly ?? price.monthly * 12)
+      };
+    } else {
       return res.status(400).json({
         success: false,
-        message: 'Price object with monthly, quarterly, and yearly fields is required'
+        message: 'Price is required'
       });
     }
 
@@ -146,11 +174,7 @@ exports.addAC = async (req, res, next) => {
       type,
       description,
       location,
-      price: {
-        monthly: parseFloat(price.monthly),
-        quarterly: parseFloat(price.quarterly),
-        yearly: parseFloat(price.yearly)
-      },
+      price: normalizedPrice,
       status: status || 'Available',
       images: imageUrls
     });
@@ -187,13 +211,21 @@ exports.updateAC = async (req, res, next) => {
     if (req.body.location) updateFields.location = req.body.location;
     if (req.body.status) updateFields.status = req.body.status;
 
-    // Update price if provided
-    if (req.body.price) {
-      updateFields.price = {
-        monthly: req.body.price.monthly !== undefined ? parseFloat(req.body.price.monthly) : ac.price.monthly,
-        quarterly: req.body.price.quarterly !== undefined ? parseFloat(req.body.price.quarterly) : ac.price.quarterly,
-        yearly: req.body.price.yearly !== undefined ? parseFloat(req.body.price.yearly) : ac.price.yearly
-      };
+    // Update price if provided (accept number or object)
+    if (req.body.price !== undefined) {
+      if (typeof req.body.price === 'number') {
+        updateFields.price = {
+          monthly: parseFloat(req.body.price),
+          quarterly: parseFloat(req.body.price) * 3,
+          yearly: parseFloat(req.body.price) * 12
+        };
+      } else {
+        updateFields.price = {
+          monthly: req.body.price.monthly !== undefined ? parseFloat(req.body.price.monthly) : ac.price.monthly,
+          quarterly: req.body.price.quarterly !== undefined ? parseFloat(req.body.price.quarterly) : ac.price.quarterly,
+          yearly: req.body.price.yearly !== undefined ? parseFloat(req.body.price.yearly) : ac.price.yearly
+        };
+      }
     }
 
     // Update images if provided (images come as array of URLs from frontend)
@@ -243,11 +275,17 @@ exports.deleteAC = async (req, res, next) => {
 // Create rental inquiry (called from routes)
 exports.createRentalInquiry = async (req, res, next) => {
   try {
-    const { name, email, phone, message, acId, acDetails } = req.body;
+    const { name, email, phone, message, acId, acDetails, duration } = req.body;
     const { id } = req.params;
 
     // Use acId from request body if provided, otherwise use id from URL params
     const finalAcId = acId || id;
+    if (acId && acId !== id) {
+      return res.status(400).json({
+        success: false,
+        message: 'acId in body must equal path parameter id'
+      });
+    }
 
     // Check if AC exists
     const ac = await AC.findById(finalAcId);
@@ -283,6 +321,7 @@ exports.createRentalInquiry = async (req, res, next) => {
       name,
       email,
       phone,
+      duration,
       message
     });
 

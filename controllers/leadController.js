@@ -4,13 +4,12 @@ const { notifyLead } = require('../utils/notifications');
 // Create lead
 exports.createLead = async (req, res, next) => {
   try {
-    const { name, phone, interest, source } = req.body;
+    const { name, phone, message } = req.body;
 
     const lead = await Lead.create({
       name,
       phone,
-      interest,
-      source
+      message
     });
 
     // Notify admin
@@ -18,7 +17,7 @@ exports.createLead = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Thank you! We will contact you soon.',
+      message: 'Lead submitted successfully',
       data: lead
     });
   } catch (error) {
